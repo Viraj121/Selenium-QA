@@ -1,2 +1,7 @@
-package com.pixika.forms;public class form {
+package com.pixika.forms;
+
+import com.base.BasePage;
+
+public class form extends BasePage {
+
 }

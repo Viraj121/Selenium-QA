@@ -103,25 +103,47 @@ public class LoginAutoV2 {
         }
     }
 
+    private void verifyEmptyFieldValidation2(By fieldLocator, String errorMessage, String formType) {
+        try {
+            // Detect form based on page title or specified formType
+            String pageTitle = driver.getTitle();
+
+            // Determine which error message or validation is expected based on formType
+            if (formType.equalsIgnoreCase("Add Doctor")) {
+                // Expected validation locators for "Add Doctor" form
+                if (pageTitle.contains("Select Doctor")) {
+                    WebElement field = driver.findElement(fieldLocator);
+                    boolean isFieldRequired = field.getAttribute("required") != null
+                            || field.getAttribute("validationMessage").contains(errorMessage);
+                    Assert.assertTrue(isFieldRequired, "Expected field validation message not found for Doctor field!");
+                }
+            } else if (formType.equalsIgnoreCase("Add Patient")) {
+                // Expected validation locators for "Add Patient" form
+                if (pageTitle.contains("Add Patient")) {
+                    WebElement field = driver.findElement(fieldLocator);
+                    boolean isFieldRequired = field.getAttribute("required") != null
+                            || field.getAttribute("validationMessage").contains(errorMessage);
+                    Assert.assertTrue(isFieldRequired, "Expected field validation message not found for Patient field!");
+                }
+            }
+        } catch (Exception e) {
+            Assert.fail("Validation message or required attribute not found for empty fields!");
+        }
+    }
+
+
     // Test cases
 
-    @Test
-    public void testEmptyFieldsLogin() {
+    @Test (priority = 1)
+    public void testEmptyFieldsLogin() throws InterruptedException{
         login("", "");
         verifyEmptyFieldValidation(By.xpath("//*[@id='username']"), "Please fill out this field.");
+        Thread.sleep(1000);
+        login(" cv001","");
+        verifyEmptyFieldValidation(By.xpath("//*[@id='pass']"), "Please fill out this field.");
     }
 
-    @Test
-    public void testEndToEndFlow() throws InterruptedException {
-        login("cv001", "indigital");
-        selectDoctor("yogesh doc");
-        addPatient("John Doe", "30", "Male");
-        answerQuestions();
-        validateAndDownloadScore();
-        takeAnotherTest();
-    }
-
-    @Test
+    @Test (priority = 2)
     public void testInvalidLogin() throws InterruptedException {
         login("invalidUser", "invalidPass");
         Thread.sleep(2000);
@@ -132,26 +154,112 @@ public class LoginAutoV2 {
         Assert.assertEquals(error, "Login Failed");
     }
 
-    @Test
+    @Test (priority = 3)
     public void testEmptyFieldsAddPatient() throws InterruptedException {
 
 
         login("cv001", "indigital");
         Thread.sleep(2000);
+
+
         selectDoctor("yogesh doc");
         Thread.sleep(2000);
-        addPatient("","","");
 
+
+        addPatient("","","");
         verifyEmptyFieldValidation(By.cssSelector("#patientName"), "Please fill out this field.");
         Thread.sleep(2000);
 
         addPatient("OK","","");
         verifyEmptyFieldValidation(By.cssSelector("#patientAge"), "Please fill out this field.");
-
         Thread.sleep(2000);
-//        addPatient("okayyy","10","");
-////        driver.findElement(By.cssSelector("#addPatientForm > button")).click();
-//        Thread.sleep(2000);
-//        verifyEmptyFieldValidation(By.xpath("//*[@id=\"addPatientForm\"]/div[3]/div[1]/label"), "Please select one of these options.");
+
+        driver.navigate().refresh();
+
+        // Enter data for name and age but leave gender field unselected
+        WebElement patientName = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("#patientName")));
+        patientName.sendKeys("John Doe");
+
+        WebElement patientAge = wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("#patientAge")));
+        patientAge.sendKeys("30");
+        Thread.sleep(1000);
+
+        driver.findElement(By.cssSelector("#addPatientForm > button")).click();
+        Thread.sleep(2000);
+        verifyEmptyFieldValidation(By.xpath("//*[@id=\"male\"]"), "Please select one of these options.");
+        Thread.sleep(1000);
     }
+
+    @Test (priority = 4)
+    public void testAgeFieldValidation() throws InterruptedException {
+        Thread.sleep(1000);
+        login("cv001", "indigital");
+        Thread.sleep(1000);
+        selectDoctor("yogesh doc");
+        Thread.sleep(1000);
+        // Test with age less than 1
+        addPatient("Joh", "0", "Male");
+        verifyEmptyFieldValidation(By.cssSelector("#patientAge"), "Value must be greater than or equal to 1");
+
+        // Test with age greater than 130
+        addPatient(" D", "131", "Male");
+        verifyEmptyFieldValidation(By.cssSelector("#patientAge"), "Value must be less than or equal to 130");
+
+        // Test with non-numeric input
+        addPatient(" Vicky", "abc", "Male");
+        verifyEmptyFieldValidation(By.cssSelector("#patientAge"), "Please enter a valid number");
+
+        // Test with valid minimum age boundary
+        addPatient("", "1", "Male");
+        submitAndVerifyNoValidationError();  // Verify form submission without errors
+
+        // Test with valid maximum age boundary
+        addPatient("", "130", "Male");
+        submitAndVerifyNoValidationError();  // Verify form submission without errors
+    }
+
+    // Helper method to submit the form and check for validation
+    private void submitAndVerifyNoValidationError() {
+        WebElement submitButton = wait.until(ExpectedConditions.elementToBeClickable(By.cssSelector("#addPatientForm > button")));
+        submitButton.click();
+
+        // Assuming validation message is displayed when there's an error
+        boolean hasValidationError = !driver.findElements(By.cssSelector(".validation-message")).isEmpty();
+        Assert.assertFalse(hasValidationError, "Form submission should be successful, but validation error is displayed!");
+    }
+
+    @Test (priority = 5)
+    public void testHealthQuestionnaireValidation() throws InterruptedException {
+        login("cv001", "indigital");
+        Thread.sleep(2000);
+        selectDoctor("yogesh doc");
+        Thread.sleep(2000);
+        addPatient("John Doe", "30", "Male");
+        Thread.sleep(2000);
+
+        wait.until(ExpectedConditions.elementToBeClickable(By.xpath("//*[@id=\"waistOptionsMale\"]/div[1]/label"))).click();
+        Thread.sleep(1000);
+
+        driver.findElement(By.cssSelector("#submit-button")).click();
+        Thread.sleep(2000);
+
+        // Verify that the error message appears because the third question was not answered
+        String errorMessage = wait.until(ExpectedConditions.visibilityOfElementLocated(By.xpath("//*[@id=\"swal2-title\"]"))).getText();
+        Assert.assertEquals(errorMessage, "Error!", "Error message was not displayed as expected!");
+
+        driver.findElement(By.xpath("//button[normalize-space()='OK']")).click();
+    }
+
+    @Test (priority = 6)
+    public void testEndToEndFlow() throws InterruptedException {
+        login("cv001", "indigital");
+        Thread.sleep(1000);
+        selectDoctor("yogesh doc");
+        addPatient("John Doe", "30", "Male");
+        answerQuestions();
+        validateAndDownloadScore();
+        takeAnotherTest();
+    }
+
+
 }

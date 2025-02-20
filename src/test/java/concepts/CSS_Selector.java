@@ -8,7 +8,7 @@ import org.openqa.selenium.edge.EdgeDriver;
 import org.openqa.selenium.firefox.FirefoxDriver;
 
 public class CSS_Selector {
-    public static String browser="chrome";
+    public static String browser="edge";
     public  static WebDriver driver;
 
     public static void main(String[] args) {
